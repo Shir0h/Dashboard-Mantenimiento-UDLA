@@ -1,8 +1,9 @@
 """Convierte archivos Excel (.xlsx / .xls) de una carpeta en archivos CSV.
 
 Este script solo hace la conversión de formato, sin aplicar ningún filtro.
-Para dejar solo las filas "Finalizadas" con fechas válidas, usa el script
-`filtrar_csv.py` sobre el CSV generado aquí.
+Para dejar solo las filas "Finalizadas" con fechas válidas y enriquecer
+Empresa/Formato/Local, usa `src/pipeline.py` (función `procesar_csv`)
+sobre el CSV generado aquí.
 
 Genera un log de ejecución (consola + archivo) con el detalle de cada
 archivo procesado, filas convertidas y errores encontrados.

@@ -9,12 +9,11 @@ dashboard_mantenimiento/
 ├── dashboard_app.py              # Aplicación Streamlit principal
 ├── limpiar_columnas_por_color.py # Script de limpieza inicial desde Excel
 ├── src/
-│   ├── __init__.py
 │   ├── config_utils.py
-│   ├── database.py              # Carga de CSV a SQLite
+│   ├── convertir_a_csv.py       # Conversión masiva de Excel a CSV (sin filtros)
+│   ├── database.py              # Carga de CSV a SQLite (y CLI: python -m src.database)
 │   ├── logging_utils.py
-│   ├── pipeline.py              # Lógica de filtrado y enriquecimiento
-│   └── ...
+│   └── pipeline.py              # Lógica de filtrado y enriquecimiento
 ├── tests/
 │   └── test_pipeline.py         # Prueba de regresión del pipeline
 ├── outputs/                     # CSV procesados y resultados intermedios
@@ -41,7 +40,7 @@ python -m src.pipeline --input outputs/Data_proyecto.csv --output outputs/ot_pro
 3. Cargar la salida a SQLite para el dashboard:
 
 ```bash
-python -c "from src.database import cargar_csv_a_sqlite; cargar_csv_a_sqlite('outputs/ot_procesadas.csv')"
+python -m src.database --input outputs/ot_procesadas.csv
 ```
 
 4. Levantar el dashboard:

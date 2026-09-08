@@ -10,10 +10,11 @@ import streamlit as st
 # Se asume la existencia del módulo interno para conectar con la base de datos
 from src.database import cargar_datos_desde_sqlite
 
-# Configuración de rutas del proyecto
+# Configuración de rutas del proyecto: primero se intenta la base SQLite y,
+# si no existe, se recurre al CSV procesado como respaldo (ambas variables
+# apuntaban antes a la misma ruta duplicada; se dejó una sola).
 DB_PATH = Path("base_de_datos_dashboard.db")
 CSV_FALLBACK = Path("outputs/Data_proyecto.csv")
-CSV_BACKUP = Path("outputs/Data_proyecto.csv")
 
 # Columnas reales obligatorias del archivo .csv
 REQUIRED_COLUMNS = [
@@ -25,28 +26,6 @@ REQUIRED_COLUMNS = [
     "Tiempo de Ejecución",
     "Fecha de creación de la OT",
 ]
-
-# Mapeo de columnas visibles en la tabla inferior según la consulta activa (Campos numéricos en minutos)
-QUERY_COLUMNS = {
-    "Vista General de OTs": [
-        "ID de Orden de Trabajo",
-        "Estado",
-        "Tipo de Tarea",
-        "Responsable",
-    ],
-    "Análisis de Tiempos y Eficiencia": [
-        "ID de Orden de Trabajo",
-        "Responsable",
-        "Duración Estimada (min)",
-        "Tiempo de Ejecución (min)",
-        "Estado",
-    ],
-    # Sub-consultas de Responsables (Todas usan minutos numéricos)
-    "Volumen por Responsable": ["Responsable", "Estado", "ID de Orden de Trabajo"],
-    "Eficiencia de Tiempos": ["Responsable", "Duración Estimada (min)", "Tiempo de Ejecución (min)"],
-    "Especialidad por Tarea": ["Responsable", "Tipo de Tarea", "Tiempo de Ejecución (min)"],
-    "Urgencias por Operario": ["Responsable", "Tipo de Tarea", "Estado"]
-}
 
 # Paleta de colores corporativa pero moderna
 PALETA_CORPORATIVA = ["#0F4C81", "#1F77B4", "#4B6584", "#20BF6B", "#26DE81", "#A5B1C2"]
@@ -62,27 +41,32 @@ def cargar_datos() -> pd.DataFrame:
     Limpia, estandariza e indexa los campos de texto y convierte las cadenas
     de duraciones (formato '0 days 00:00:00') a valores numéricos en minutos.
     """
+    # Prioriza la base de datos SQLite; si no existe, cae al CSV de respaldo.
     if DB_PATH.exists():
         df = cargar_datos_desde_sqlite(DB_PATH)
     elif CSV_FALLBACK.exists():
         df = pd.read_csv(CSV_FALLBACK, encoding="utf-8-sig", dtype=str)
-    elif CSV_BACKUP.exists():
-        df = pd.read_csv(CSV_BACKUP, encoding="utf-8-sig", dtype=str)
     else:
+        # Si no hay ninguna fuente de datos disponible, se devuelve un DataFrame vacío.
         return pd.DataFrame(columns=REQUIRED_COLUMNS)
 
+    # Si la fuente de datos existe pero está vacía, se devuelve el esquema mínimo.
     if df.empty:
         return pd.DataFrame(columns=REQUIRED_COLUMNS)
 
+    # Se trabaja sobre una copia para no modificar el DataFrame cacheado por Streamlit.
     df = df.copy()
+    # Garantiza que todas las columnas obligatorias existan, aunque vengan vacías.
     for columna in REQUIRED_COLUMNS:
         if columna not in df.columns:
             df[columna] = pd.NA
 
+    # Reemplaza valores nulos por etiquetas legibles para evitar "NaN" en la interfaz.
     df["Responsable"] = df["Responsable"].fillna("Sin responsable").astype(str)
     df["Estado"] = df["Estado"].fillna("Sin estado").astype(str)
     df["Tipo de Tarea"] = df["Tipo de Tarea"].fillna("Sin tipo").astype(str)
-    
+
+    # Convierte la fecha de creación a tipo datetime y deriva el mes (AAAA-MM) para agrupar tendencias.
     df["Fecha de creación de la OT"] = pd.to_datetime(
         df["Fecha de creación de la OT"], errors="coerce"
     )
@@ -90,11 +74,13 @@ def cargar_datos() -> pd.DataFrame:
 
     def convertir_duracion_a_minutos(valor: object) -> float:
         """Parsea cadenas con formato de tiempo complejo a minutos numéricos."""
+        # Valores nulos o vacíos no se pueden convertir: se devuelve NaN.
         if pd.isna(valor):
             return float("nan")
         texto = str(valor).strip()
         if not texto:
             return float("nan")
+        # Extrae días, horas, minutos y segundos del formato tipo "0 days 00:00:00".
         match = re.match(r"(?:(\d+)\s+days\s+)?(?:(\d+):)?(\d+):(\d+)", texto)
         if not match:
             return float("nan")
@@ -102,8 +88,10 @@ def cargar_datos() -> pd.DataFrame:
         horas = int(match.group(2) or 0)
         minutos = int(match.group(3) or 0)
         segundos = int(match.group(4) or 0)
+        # Convierte todo a minutos para poder comparar duraciones de forma numérica.
         return dias * 1440 + horas * 60 + minutos + (segundos / 60)
 
+    # Aplica la conversión a las columnas de duración estimada y tiempo real de ejecución.
     df["Duración Estimada (min)"] = df["Tarea -> Duración Estimada"].apply(convertir_duracion_a_minutos)
     df["Tiempo de Ejecución (min)"] = df["Tiempo de Ejecución"].apply(convertir_duracion_a_minutos)
     return df
@@ -144,24 +132,27 @@ def main() -> None:
     # =========================================================================
     # NAVEGACIÓN INDIVIDUAL POR GRÁFICO
     # =========================================================================
+    # Inicializa en sesión el gráfico activo por defecto (solo la primera vez que carga la app).
     if "grafico_activo" not in st.session_state:
         st.session_state.grafico_activo = "Volumen de Tareas por Tipo Operativo"
 
     st.subheader("📊 Selecciona el Gráfico de Análisis")
-    
+
     # Opciones de gráficos disponibles (3 gráficos permitidos)
     graficos_disponibles = [
         "Volumen de Tareas por Tipo Operativo",
         "Comparación Temporal Promedio (Minutos)",
         "Tendencia Mensual de Apertura de OTs"
     ]
-    
-    # Sistema de botones para navegar entre gráficos
+
+    # Sistema de botones para navegar entre gráficos: uno por columna, en una sola fila.
     cols_grafico = st.columns(3)
     for idx, grafico_nombre in enumerate(graficos_disponibles):
         with cols_grafico[idx]:
+            # Marca con un check el botón del gráfico actualmente seleccionado.
             estilo_btn = f"✓ {grafico_nombre}" if st.session_state.grafico_activo == grafico_nombre else grafico_nombre
             if st.button(estilo_btn, use_container_width=True, key=f"btn_grafico_{idx}"):
+                # Al hacer clic, cambia el gráfico activo y refresca la página.
                 st.session_state.grafico_activo = grafico_nombre
                 st.rerun()
 
