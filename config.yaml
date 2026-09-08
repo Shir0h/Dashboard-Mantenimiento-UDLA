@@ -1,0 +1,31 @@
+# Información general del proyecto
+project:
+  name: dashboard_mantenimiento   # Nombre del proyecto
+  python_version: "3.10+"        # Versión mínima de Python recomendada
+
+# Rutas usadas por los scripts
+paths:
+  input_excel: data/raw/Data_proyecto_integrador.xlsx  # Archivo Excel que se va a limpiar
+  output_dir: outputs                                  # Carpeta donde se guardan los archivos generados
+  log_dir: logs                                        # Carpeta para los archivos de log
+  raw_data_dir: data/raw                               # Carpeta con los archivos fuente
+
+# Parámetros del proceso de limpieza
+processing:
+  sheet_name: null  # Nombre de la hoja a usar; si queda en null, se toma la primera
+  green_hints:      # Códigos de color que se consideran verdes para conservar columnas
+    - 00B050
+    - 92D050
+    - 70AD47
+    - A9D18E
+    - C6E0B4
+    - 008000
+    - 00FF00
+  orange_hints:     # Códigos de color que se consideran naranjas para conservar columnas
+    - FFC000
+    - F4B183
+    - ED7D31
+    - FFA500
+    - FCE4D6
+    - FF9900
+    - FF6600
